@@ -71,8 +71,8 @@ The following sections guide you through the Chunk setup process. Once setup is 
 
 Ensure you have the following in place before you get started:
 
-* The CircleCI GitHub App installed in your organization. Check **Organization Settings** > **VCS Connections**. Chunk needs the GitHub App to recommend fixes and open pull requests.
-* The **Allow Chunk tasks** option enabled for your organization. Navigate to **Organization Settings** > **Advanced** and toggle on **Allow Chunk tasks**.
+* The CircleCI GitHub App installed in your organization. Check **Org** > **VCS Connections**. Chunk needs the GitHub App to recommend fixes and open pull requests.
+* The **Allow Chunk tasks** option enabled for your organization. Navigate to menu:Org[Advanced] and toggle on **Allow Chunk tasks**.
 * A model provider API key, if you are not using the default CircleCI (Powered by Anthropic) option. See the <<Model providers>> section for details on each provider.
 
 *If you are using OpenAI*, you also need to:
@@ -97,7 +97,7 @@ Once you meet the prerequisites, set up Chunk as follows:
 +
 .Set up Chunk for your organization
 image::guides:ROOT:chunk/set-up-chunk.png[Chunk setup modal]
-. You should see a checkmark to confirm the GitHub App is installed for your organization. If not, select **Install CircleCI GitHub App** to install it now.
+. A checkmark confirms the GitHub App is installed for your organization. If the checkmark is missing, select **Install CircleCI GitHub App** to install it now.
 . Select your AI model provider from the **Select your AI Model** dropdown. The available options are:
 * **CircleCI (Powered by Anthropic)**: No API key required. This is the default option.
 * **Anthropic**: Requires your own Anthropic API key.
@@ -212,7 +212,7 @@ If you need to tear down Chunk for your organization, delete your model provider
 . Locate your model provider API key environment variable and select it using the radio button.
 . Select **Delete** to delete the environment variable. You will be prompted to confirm the deletion.
 
-NOTE: **CircleCI (Powered by Anthropic) users.** If you are using the CircleCI-managed provider, there is no API key stored in your context. To remove Chunk access, disable the **Allow Chunk tasks** toggle in **Organization Settings** > **Advanced**.
+NOTE: **CircleCI (Powered by Anthropic) users.** If you are using the CircleCI-managed provider, there is no API key stored in your context. To remove Chunk access, disable the **Allow Chunk tasks** toggle in menu:Org[Advanced].
 
 == Fix failed builds with Chunk
 
@@ -465,7 +465,7 @@ When using the Chunk chat interface, you can tell Chunk which project, repositor
 
 To build and iterate on Chunk's environment, follow these steps:
 
-. Navigate to menu:Organization Settings[Chunk Tasks].
+. Navigate to menu:Org[Tasks].
 . Identify your desired agent task.
 . Select the ellipsis icon (icon:more[Ellipsis icon]) and select **Chunk Environment**.
 
@@ -477,20 +477,103 @@ Merge the `cci-agent-setup.yml` file to your default branch when the results are
 
 To improve Chunk's ability to run tests and produce fixes aligned with your stylistic and architectural preferences, you can include instructions in a markdown file. Name the file `claude.md` or `agents.md` and place it in the root of your repository. Chunk picks this up automatically.
 
+[#ip-ranges]
+== Enable IP ranges in Chunk tasks
+
+By default, outbound traffic from Chunk tasks does not use a fixed set of IP addresses.
+If your infrastructure uses IP-based access controls, for example a GitHub IP allowlist, you can route Chunk task traffic through CircleCI's known static IP addresses.
+
+NOTE: **Performance or Scale Plan required.** IP ranges are not available on the Free Plan.
+See the xref:guides:plans-pricing:plan-overview.adoc[CircleCI Plans Overview] page for more information.
+
+[#how-ip-ranges-work-with-chunk]
+=== How IP ranges work with Chunk
+
+Chunk tasks run in two stages:
+
+. **Setup stage** -- CircleCI runs a pipeline that checks out your code, sets up artifacts and the environment, and runs `merge-and-continue`.
+. **Chunk task stage** -- CircleCI runs the merged config from `cci-agent-setup.yml` and the agent config.
+
+When IP ranges are enabled, both stages route outbound traffic through CircleCI's known static IP addresses.
+For the full list of IP addresses and information on credit usage, see the xref:guides:security:ip-ranges.adoc[IP Ranges] page.
+
+[#enable-ip-ranges-chunk-org-setting]
+=== 1. Enable the org-level setting
+
+. In the CircleCI web app, select **Organization Settings** from the sidebar.
+. Select **Chunk** from the left menu.
+. Scroll to the bottom of the page and enable the **Enable IP Ranges in Chunk Tasks** toggle.
++
+.Enable IP Ranges in Chunk Tasks toggle
+image::guides:ROOT:chunk/chunk-ip-ranges-toggle.png[Enable IP Ranges in Chunk Tasks toggle]
+
+Once enabled, the setup stage (stage 1) will automatically route traffic through CircleCI's known IP addresses.
+
+[#configure-cci-agent-setup-yml]
+=== 2. Configure the cci-agent-setup.yml file
+
+To enable IP ranges for the Chunk task stage (stage 2), you must add a `.circleci/cci-agent-setup.yml` file to your repository's default branch.
+
+The file must meet the following two requirements:
+
+* Set `circleci_ip_ranges: true` at the job level.
+* Use a Docker executor. The default Chunk executor is `machine` (Ubuntu), which is not compatible with IP ranges.
+
+The following is a minimal working example:
+
+.`.circleci/cci-agent-setup.yml` with IP ranges enabled
+[source,yaml]
+----
+jobs:
+  cci-agent-setup:
+    circleci_ip_ranges: true # must be set at job level
+    docker:
+      - image: cimg/base:current # Docker executor is required for IP ranges
+    steps:
+      - checkout
+----
+
+CAUTION: **Docker executor is required.** The default Chunk executor is `machine` (Ubuntu), which does not support IP ranges.
+You must use a Docker executor in your `cci-agent-setup.yml` file.
+
+[#verify-ip-ranges-chunk]
+=== 3. Verify the setup
+
+To confirm that IP ranges are active, add a step to your `cci-agent-setup.yml` that prints the public IP address of the job.
+The printed address must match one of the addresses in the xref:guides:security:ip-ranges.adoc#list-of-ip-address-ranges[List of IP Address Ranges].
+
+.`.circleci/cci-agent-setup.yml` with IP verification step
+[source,yaml]
+----
+jobs:
+  cci-agent-setup:
+    circleci_ip_ranges: true
+    docker:
+      - image: cimg/base:current
+    steps:
+      - run:
+          name: Verify IP ranges
+          command: curl -s ifconfig.me && echo # prints the public IP of the job
+      - checkout
+----
+
+NOTE: **Startup time.** Enabling IP ranges may slightly increase job startup time.
+This is because traffic is routed through CircleCI's static IP infrastructure.
+
 == Troubleshooting
 
 === I cannot see the Chunk option in the sidebar
 
-If you do not see Chunk image:guides:ROOT:icons/chunk.svg[Chunk icon, role="no-border"] in the sidebar, you may not have the **Allow Chunk tasks** option enabled. Navigate to menu:Organization Settings[Advanced] and toggle on **Allow Chunk tasks**.
+If you do not see Chunk image:guides:ROOT:icons/chunk.svg[Chunk icon, role="no-border"] in the sidebar, you may not have the **Allow Chunk tasks** option enabled. Navigate to menu:Org[Advanced] and toggle on **Allow Chunk tasks**.
 
-.Organization settings > Advanced > Allow Chunk tasks
+.Org > Advanced > Allow Chunk tasks
 image::guides:ROOT:chunk/allow-chunk-tasks.png[Allow Chunk tasks]
 
 === I cannot get my OpenAI organization verified
 
 If organization verification is not possible, you can bypass this requirement by adding an environment variable to your `circleci-agents` context as follows:
 
-. In the CircleCI web app, go to **Organization Settings** > **Contexts**.
+. In the CircleCI web app, go to menu:Org[Contexts].
 . Use the search to find the `circleci-agents` context. Select it by name to open configuration options.
 . Scroll down to the "Environment variables" section.
 . Select **Add environment variable** and enter the following:
@@ -512,11 +595,11 @@ You need to make sure your organization has GPT-5 access. To verify this in the 
 
 === Amazon Bedrock authentication error or 401
 
-Your AWS bearer token is invalid or has expired. Regenerate the token in AWS IAM and update it in the `circleci-agents` context in **Organization Settings** > **Contexts**.
+Your AWS bearer token is invalid or has expired. Regenerate the token in AWS IAM and update it in the `circleci-agents` context in menu:Org[Contexts].
 
 === Amazon Bedrock access denied or 403 on model invocation
 
-You have not requested access to the Anthropic Claude model in the Bedrock console, or access has not yet been granted. Navigate to the AWS Management Console, go to **Amazon Bedrock** > **Model access**, and confirm the model is enabled.
+You have not requested access to the Anthropic Claude model in the Bedrock console, or access is still pending. Navigate to the AWS Management Console, go to **Amazon Bedrock** > **Model access**, and confirm the model is enabled.
 
 === Amazon Bedrock model not found or 404
 
