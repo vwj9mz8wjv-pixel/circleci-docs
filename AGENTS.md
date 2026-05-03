@@ -1,6 +1,6 @@
-# CircleCI Documentation Style Guide for Claude Code
+# CircleCI Documentation Style Guide for AI Assistants
 
-This guide provides style, voice, and formatting rules for creating and editing CircleCI documentation. Follow these guidelines when working on AsciiDoc content in the docs directory.
+This guide provides style, voice, and formatting rules for AI assistants when creating and editing CircleCI documentation. Follow these guidelines when working on AsciiDoc content in the docs directory.
 
 ## Documentation Overview
 
@@ -10,7 +10,7 @@ For a comprehensive overview of the CircleCI documentation structure, see the au
 - Content statistics and URL patterns
 - Technical stack information
 
-This guide (CLAUDE.md) focuses on **how to write documentation**. The llms.txt file tells you **what documentation exists and where**.
+This guide focuses on **how to write documentation**. The llms.txt file tells you **what documentation exists and where**.
 
 ## Creating New Documentation Pages
 
